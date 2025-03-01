@@ -57,6 +57,15 @@
             updateTableList();
         });
 
+        function transformSQLQuery(query) {
+            return query
+                .replace(/SELECT TOP (\d+) (.*) FROM/i, "SELECT $2 FROM")  // Transforma 'SELECT TOP N' en equivalente SQLite
+                .replace(/GETDATE\(\)/gi, "CURRENT_TIMESTAMP")  // Convierte GETDATE() a SQLite
+                .replace(/ISNULL\((.*?), (.*?)\)/gi, "IFNULL($1, $2)")  // Convierte ISNULL a IFNULL de SQLite
+                .replace(/NVARCHAR\(\d+\)/gi, "TEXT")  // Convierte NVARCHAR a TEXT
+                .replace(/IDENTITY\(\d+,\d+\)/gi, "INTEGER PRIMARY KEY AUTOINCREMENT");  // Convierte IDENTITY a SQLite PK
+        }
+
         async function loadCSV(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -78,32 +87,9 @@
             reader.readAsText(file);
         }
 
-        async function loadExcel(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                workbook.SheetNames.forEach(sheetName => {
-                    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
-                    if (sheet.length < 2) return;
-                    const tableName = file.name.replace(/\.[^/.]+$/, "") + '_' + sheetName.replace(/\s+/g, '_');
-                    let headers = sheet[0].map(h => h.trim().replace(/\s+|\.|\//g, '_'));
-                    db.run(`DROP TABLE IF EXISTS ${tableName};`);
-                    const createTableSQL = `CREATE TABLE ${tableName} (${headers.map(h => `${h} TEXT`).join(', ')});`;
-                    db.run(createTableSQL);
-                    for (let i = 1; i < sheet.length; i++) {
-                        const values = sheet[i].map(value => `'${(value || '').toString().replace(/'/g, "''")}'`).join(', ');
-                        if (values.trim()) {
-                            db.run(`INSERT INTO ${tableName} VALUES (${values});`);
-                        }
-                    }
-                });
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
         function executeQuery() {
-            const query = document.getElementById("sqlQuery").value;
+            let query = document.getElementById("sqlQuery").value;
+            query = transformSQLQuery(query);
             try {
                 const result = db.exec(query);
                 let html = "<table><tr>";
