@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Server Web Emulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        textarea { width: 100%; height: 100px; margin-top: 10px; }
+        button { margin-top: 10px; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+    </style>
+</head>
+<body>
+    <h2>SQL Server Web Emulator</h2>
+    <input type="file" id="fileInput" accept=".csv,.json">
+    <textarea id="sqlQuery" placeholder="Write your SQL query here..."></textarea>
+    <button onclick="executeQuery()">Run Query</button>
+    <div id="result"></div>
+
+    <script>
+        let db;
+
+        async function initDatabase() {
+            const SQL = await initSqlJs({ locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${filename}` });
+            db = new SQL.Database();
+            db.run("CREATE TABLE movies (Id INTEGER, Title TEXT, Director TEXT, Year INTEGER, Length_minutes INTEGER);");
+        }
+        
+        document.getElementById('fileInput').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const rows = text.split('\n').slice(1);
+                db.run("DELETE FROM movies;");
+                rows.forEach(row => {
+                    const values = row.split(',');
+                    if (values.length === 5) {
+                        db.run(`INSERT INTO movies VALUES (${values[0]}, '${values[1]}', '${values[2]}', ${values[3]}, ${values[4]});`);
+                    }
+                });
+                alert("Database loaded successfully!");
+            };
+            reader.readAsText(file);
+        });
+
+        function executeQuery() {
+            const query = document.getElementById("sqlQuery").value;
+            try {
+                const result = db.exec(query);
+                let html = "<table><tr>";
+                if (result.length > 0) {
+                    result[0].columns.forEach(col => html += `<th>${col}</th>`);
+                    html += "</tr>";
+                    result[0].values.forEach(row => {
+                        html += "<tr>";
+                        row.forEach(cell => html += `<td>${cell}</td>`);
+                        html += "</tr>";
+                    });
+                    html += "</table>";
+                } else {
+                    html = "<p>No results found.</p>";
+                }
+                document.getElementById("result").innerHTML = html;
+            } catch (error) {
+                document.getElementById("result").innerHTML = `<p style='color:red;'>Error: ${error.message}</p>`;
+            }
+        }
+        
+        initDatabase();
+    </script>
+</body>
+</html>
