@@ -7,20 +7,33 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
+        body { font-family: Arial, sans-serif; display: flex; }
+        .container { width: 70%; padding: 20px; }
+        .sidebar { width: 30%; background: #f8f9fa; padding: 20px; border-left: 1px solid #ccc; }
         textarea { width: 100%; height: 100px; margin-top: 10px; }
-        button { margin-top: 10px; padding: 10px; }
+        button { margin-top: 10px; padding: 10px; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid black; padding: 8px; text-align: left; }
         th { background-color: #f4f4f4; }
+        .table-list { list-style: none; padding: 0; }
+        .table-list li { padding: 5px; cursor: pointer; }
+        .table-list li:hover { background: #ddd; }
     </style>
 </head>
 <body>
-    <h2>SQL Server Web Emulator</h2>
-    <input type="file" id="fileInput" accept=".csv,.xls,.xlsx" multiple>
-    <textarea id="sqlQuery" placeholder="Write your SQL query here..."></textarea>
-    <button onclick="executeQuery()">Run Query</button>
-    <div id="result"></div>
+    <div class="container">
+        <h2>SQL Server Web Emulator</h2>
+        <input type="file" id="fileInput" accept=".csv,.xls,.xlsx" multiple>
+        <button onclick="document.getElementById('fileInput').click()">Add More Tables</button>
+        <textarea id="sqlQuery" placeholder="Write your SQL query here..."></textarea>
+        <button onclick="executeQuery()">Run Query</button>
+        <div id="result"></div>
+    </div>
+    
+    <div class="sidebar">
+        <h3>Tables</h3>
+        <ul id="tableList" class="table-list"></ul>
+    </div>
 
     <script>
         let db;
@@ -28,6 +41,7 @@
         async function initDatabase() {
             const SQL = await initSqlJs({ locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${filename}` });
             db = new SQL.Database();
+            updateTableList();
         }
 
         document.getElementById('fileInput').addEventListener('change', async (event) => {
@@ -40,6 +54,7 @@
                 }
             }
             alert("All files loaded successfully!");
+            updateTableList();
         });
 
         async function loadCSV(file) {
@@ -105,8 +120,23 @@
                     html = "<p>No results found.</p>";
                 }
                 document.getElementById("result").innerHTML = html;
+                updateTableList();
             } catch (error) {
                 document.getElementById("result").innerHTML = `<p style='color:red;'>Error: ${error.message}</p>`;
+            }
+        }
+
+        function updateTableList() {
+            const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table';");
+            const tableList = document.getElementById("tableList");
+            tableList.innerHTML = "";
+            if (tables.length > 0) {
+                tables[0].values.forEach(row => {
+                    const li = document.createElement("li");
+                    li.textContent = row[0];
+                    li.onclick = () => document.getElementById("sqlQuery").value = `SELECT * FROM ${row[0]};`;
+                    tableList.appendChild(li);
+                });
             }
         }
 
@@ -114,3 +144,4 @@
     </script>
 </body>
 </html>
+
