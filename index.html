@@ -16,7 +16,7 @@
 </head>
 <body>
     <h2>SQL Server Web Emulator</h2>
-    <input type="file" id="fileInput" accept=".csv,.json">
+    <input type="file" id="fileInput" accept=".csv" multiple>
     <textarea id="sqlQuery" placeholder="Write your SQL query here..."></textarea>
     <button onclick="executeQuery()">Run Query</button>
     <div id="result"></div>
@@ -27,27 +27,39 @@
         async function initDatabase() {
             const SQL = await initSqlJs({ locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${filename}` });
             db = new SQL.Database();
-            db.run("CREATE TABLE movies (Id INTEGER, Title TEXT, Director TEXT, Year INTEGER, Length_minutes INTEGER);");
         }
-        
+
         document.getElementById('fileInput').addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = event.target.files;
+            for (const file of files) {
+                await loadCSV(file);
+            }
+            alert("All files loaded successfully!");
+        });
+
+        async function loadCSV(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const text = e.target.result;
-                const rows = text.split('\n').slice(1);
-                db.run("DELETE FROM movies;");
-                rows.forEach(row => {
-                    const values = row.split(',');
-                    if (values.length === 5) {
-                        db.run(`INSERT INTO movies VALUES (${values[0]}, '${values[1]}', '${values[2]}', ${values[3]}, ${values[4]});`);
+                const rows = text.split('\n').map(row => row.split(','));
+                const tableName = file.name.replace(/\.[^/.]+$/, ""); // Remove file extension
+                
+                if (rows.length < 2) return;
+                const headers = rows[0].map(h => h.trim().replace(/\s+/g, '_'));
+                db.run(`DROP TABLE IF EXISTS ${tableName};`);
+                
+                const createTableSQL = `CREATE TABLE ${tableName} (${headers.map(h => `${h} TEXT`).join(', ')});`;
+                db.run(createTableSQL);
+                
+                for (let i = 1; i < rows.length; i++) {
+                    const values = rows[i].map(value => `'${value.replace(/'/g, "''")}'`).join(', ');
+                    if (values.trim()) {
+                        db.run(`INSERT INTO ${tableName} VALUES (${values});`);
                     }
-                });
-                alert("Database loaded successfully!");
+                }
             };
             reader.readAsText(file);
-        });
+        }
 
         function executeQuery() {
             const query = document.getElementById("sqlQuery").value;
@@ -71,7 +83,7 @@
                 document.getElementById("result").innerHTML = `<p style='color:red;'>Error: ${error.message}</p>`;
             }
         }
-        
+
         initDatabase();
     </script>
 </body>
