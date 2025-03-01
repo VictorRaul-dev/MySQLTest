@@ -47,9 +47,9 @@
             reader.onload = (e) => {
                 const text = e.target.result;
                 const rows = text.split('\n').map(row => row.split(','));
-                const tableName = file.name.replace(/\.[^/.]+$/, "");
+                const tableName = file.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, '_');
                 if (rows.length < 2) return;
-                const headers = rows[0].map(h => h.trim().replace(/\s+/g, '_'));
+                let headers = rows[0].map(h => h.trim().replace(/\s+|\.|\//g, '_'));
                 db.run(`DROP TABLE IF EXISTS ${tableName};`);
                 const createTableSQL = `CREATE TABLE ${tableName} (${headers.map(h => `${h} TEXT`).join(', ')});`;
                 db.run(createTableSQL);
@@ -72,7 +72,7 @@
                     const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
                     if (sheet.length < 2) return;
                     const tableName = file.name.replace(/\.[^/.]+$/, "") + '_' + sheetName.replace(/\s+/g, '_');
-                    const headers = sheet[0].map(h => h.trim().replace(/\s+/g, '_'));
+                    let headers = sheet[0].map(h => h.trim().replace(/\s+|\.|\//g, '_'));
                     db.run(`DROP TABLE IF EXISTS ${tableName};`);
                     const createTableSQL = `CREATE TABLE ${tableName} (${headers.map(h => `${h} TEXT`).join(', ')});`;
                     db.run(createTableSQL);
