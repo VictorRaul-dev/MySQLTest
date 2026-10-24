@@ -1,136 +1,163 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL Server Web Emulator</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; display: flex; }
-        .container { width: 70%; padding: 20px; }
-        .sidebar { width: 30%; background: #f8f9fa; padding: 20px; border-left: 1px solid #ccc; overflow-y: auto; max-height: 90vh; }
-        textarea { width: 100%; height: 100px; margin-top: 10px; }
-        button { margin-top: 10px; padding: 10px; cursor: pointer; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid black; padding: 8px; text-align: left; }
-        th { background-color: #f4f4f4; }
-        .table-list { list-style: none; padding: 0; }
-        .table-list li { padding: 5px; cursor: pointer; }
-        .table-list li:hover { background: #ddd; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>SQL Server Web Emulator</h2>
-        <input type="file" id="fileInput" accept=".csv,.xls,.xlsx" multiple>
-        <button onclick="document.getElementById('fileInput').click()">Add More Tables</button>
-        <textarea id="sqlQuery" placeholder="Write your SQL query here..."></textarea>
-        <button onclick="executeQuery()">Run Query</button>
-        <div id="result"></div>
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Laboratorio SQL con datos simulados de Excel y CSV, aislado en tu navegador."
+    />
+    <title>SQL Lab · Práctica segura</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <span class="logo">SQL</span>
+        <div>
+          <strong>SQL Lab</strong
+          ><small>Tu espacio para aprender haciendo</small>
+        </div>
+      </div>
+      <span class="badge">● Base local de práctica</span>
+    </header>
+    <div class="layout">
+      <aside>
+        <h2>Explorador de datos</h2>
+        <p>
+          Cada hoja de Excel se convierte en una tabla. La primera fila contiene
+          los nombres de las columnas.
+        </p>
+        <label class="upload"
+          >＋ Cargar Excel o CSV<input
+            id="files"
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            multiple
+            disabled
+        /></label>
+        <p class="hint">
+          Hasta 20 MB en total por carga. Las tablas repetidas reciben un
+          sufijo; no se sobrescriben.
+        </p>
+        <button id="demo" disabled>Cargar ejemplo de bonos</button>
+        <div id="schema"><p>No hay tablas todavía.</p></div>
+        <div class="aside-actions">
+          <button id="checkpoint" disabled>Guardar punto de restauración</button
+          ><button id="restore" disabled>Restaurar punto guardado</button
+          ><button id="clear" disabled>Vaciar base simulada</button>
+        </div>
+      </aside>
+      <main>
+        <div class="intro">
+          <span class="eyebrow">APRENDE · CONSULTA · EXPERIMENTA</span>
+          <h1>Practica SQL con tus propios datos.</h1>
+          <p>
+            Prueba SELECT, JOIN, UPDATE y DELETE en una base aislada. No hay
+            conexión a ningún servidor de producción.
+          </p>
+        </div>
+        <div class="notice">
+          Motor SQLite con compatibilidad parcial de T-SQL. Los archivos se
+          procesan en este navegador. Al recargar se pierde la base; las
+          librerías se descargan de servicios externos.
+        </div>
+        <section class="editor panel">
+          <div class="section-head">
+            <h2>Editor SQL</h2>
+            <label
+              >Ejemplos
+              <select id="examples">
+                <option value="">Elige una consulta</option>
+                <option value="top">Primeros bonos</option>
+                <option value="join">Cruzar bonos y emisores</option>
+                <option value="group">Agrupar por moneda</option>
+                <option value="update">Modificar un cupón</option>
+                <option value="delete">Eliminar un bono</option>
+              </select></label
+            >
+          </div>
+          <label class="sr" for="query">Consulta SQL</label
+          ><textarea
+            id="query"
+            spellcheck="false"
+            placeholder="Carga tus tablas o el ejemplo y escribe aquí tu consulta…"
+          >
+-- Carga el ejemplo de bonos para empezar.
+SELECT TOP (10) * FROM dbo.Bonos;</textarea
+          >
+          <div class="toolbar">
+            <button id="run" class="primary" disabled>▶ Ejecutar</button
+            ><button id="stop" disabled>■ Detener</button
+            ><button id="undo" disabled>Deshacer última operación</button
+            ><span>Ctrl / ⌘ + Enter</span>
+          </div>
+        </section>
+        <p id="status" role="status" aria-live="polite">
+          Preparando el motor SQL…
+        </p>
+        <section class="panel">
+          <div class="section-head">
+            <h2>Resultados</h2>
+            <span class="hint">Máximo 1.000 filas por resultado</span>
+          </div>
+          <div id="results" class="results">
+            <div class="empty">
+              Tus resultados aparecerán aquí.<br /><small
+                >Empieza cargando el ejemplo o un archivo.</small
+              >
+            </div>
+          </div>
+        </section>
+        <details class="panel guide">
+          <summary>Guía de práctica y compatibilidad</summary>
+          <p>
+            <b>Importación:</b> todas las hojas no vacías de Excel; CSV con
+            campos entrecomillados. Las columnas numéricas de Excel se reconocen
+            como INTEGER/REAL; CSV conserva texto (incluidos ceros iniciales).
+            Usa CAST(columna AS REAL) para cálculos sobre CSV. Las celdas vacías
+            son NULL; las fechas de Excel se guardan como texto ISO. Las
+            fórmulas requieren un resultado guardado por Excel.
+          </p>
+          <p>
+            <b>Equivalencias:</b> TOP n / TOP (n) en SELECT simple; dbo.Tabla;
+            ISNULL; GETDATE() (hora local del navegador); LEN (ignora espacios
+            finales); cadenas N'texto'; VARCHAR/NVARCHAR(n) como TEXT.
+          </p>
+          <p>
+            <b>Práctica disponible:</b> SELECT, WHERE, JOIN, GROUP BY, HAVING,
+            ORDER BY, CASE, CTE, INSERT, UPDATE, DELETE, CREATE TABLE y DROP
+            TABLE, dentro de las capacidades de SQLite.
+          </p>
+          <p>
+            <b>No es SQL Server real:</b> tipos, división entera, fechas,
+            ordenación y comparación pueden diferir. No incluye procedimientos,
+            variables @, tablas #temporales, IDENTITY, DATEADD, DATEDIFF, MERGE,
+            APPLY, TOP PERCENT/WITH TIES, SELECT INTO ni control manual de
+            transacciones. Se rechazan las formas conocidas no compatibles;
+            otras sintaxis pueden producir errores de SQLite.
+          </p>
+          <p>
+            <b>Recuperación:</b> cada ejecución o importación se aplica completa
+            o se revierte si falla. Deshacer recupera el estado anterior a la
+            última operación. Guarda un punto de restauración antes de
+            experimentar. Detener cancela la tarea en curso y recupera la última
+            base completada. El límite automático es de 30 segundos.
+          </p>
+          <p>
+            <b>Exportación:</b> descarga las filas visibles como CSV. Los
+            valores que pueden interpretarse como fórmulas de Excel se protegen
+            con un apóstrofo.
+          </p>
+        </details>
+        <footer>
+          SQL Lab · Laboratorio educativo ·
+          <a href="https://github.com/VictorRaul-dev/MySQLTest"
+            >Ver código en GitHub</a
+          >
+        </footer>
+      </main>
     </div>
-    
-    <div class="sidebar">
-        <h3>Tables</h3>
-        <ul id="tableList" class="table-list"></ul>
-    </div>
-
-    <script>
-        let db;
-
-        async function initDatabase() {
-            const SQL = await initSqlJs({ locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${filename}` });
-            db = new SQL.Database();
-            updateTableList();
-        }
-
-        document.getElementById('fileInput').addEventListener('change', async (event) => {
-            const files = event.target.files;
-            for (const file of files) {
-                if (file.name.endsWith('.csv')) {
-                    await loadCSV(file);
-                } else if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
-                    await loadExcel(file);
-                }
-            }
-            alert("All files loaded successfully!");
-            updateTableList();
-        });
-
-        function transformSQLQuery(query) {
-            return query
-                .replace(/SELECT TOP (\d+) (.*) FROM/i, "SELECT $2 FROM")
-                .replace(/GETDATE\(\)/gi, "CURRENT_TIMESTAMP")
-                .replace(/ISNULL\((.*?), (.*?)\)/gi, "IFNULL($1, $2)")
-                .replace(/NVARCHAR\(\d+\)/gi, "TEXT")
-                .replace(/IDENTITY\(\d+,\d+\)/gi, "INTEGER PRIMARY KEY AUTOINCREMENT");
-        }
-
-        async function loadCSV(file) {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const text = e.target.result;
-                const rows = text.split('\n').map(row => row.split(','));
-                const tableName = file.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, '_');
-                if (rows.length < 2) return;
-                let headers = rows[0].map(h => h.trim().replace(/\s+|\.|\//g, '_'));
-                db.run(`DROP TABLE IF EXISTS ${tableName};`);
-                const createTableSQL = `CREATE TABLE ${tableName} (${headers.map(h => `${h} TEXT`).join(', ')});`;
-                db.run(createTableSQL);
-                
-                db.exec("BEGIN TRANSACTION;");
-                for (let i = 1; i < rows.length; i++) {
-                    const values = rows[i].map(value => `'${value.replace(/'/g, "''")}'`).join(', ');
-                    if (values.trim()) {
-                        db.run(`INSERT INTO ${tableName} VALUES (${values});`);
-                    }
-                    if (i % 5000 === 0) await new Promise(res => setTimeout(res, 10));
-                }
-                db.exec("COMMIT;");
-            };
-            reader.readAsText(file);
-        }
-
-        function executeQuery() {
-            let query = document.getElementById("sqlQuery").value;
-            query = transformSQLQuery(query);
-            try {
-                const result = db.exec(query);
-                let html = "<table><tr>";
-                if (result.length > 0) {
-                    result[0].columns.forEach(col => html += `<th>${col}</th>`);
-                    html += "</tr>";
-                    result[0].values.forEach(row => {
-                        html += "<tr>";
-                        row.forEach(cell => html += `<td>${cell}</td>`);
-                        html += "</tr>";
-                    });
-                    html += "</table>";
-                } else {
-                    html = "<p>No results found.</p>";
-                }
-                document.getElementById("result").innerHTML = html;
-                updateTableList();
-            } catch (error) {
-                document.getElementById("result").innerHTML = `<p style='color:red;'>Error: ${error.message}</p>`;
-            }
-        }
-
-        function updateTableList() {
-            const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table';");
-            const tableList = document.getElementById("tableList");
-            tableList.innerHTML = "";
-            if (tables.length > 0) {
-                tables[0].values.forEach(row => {
-                    const li = document.createElement("li");
-                    li.textContent = row[0];
-                    li.onclick = () => document.getElementById("sqlQuery").value = `SELECT * FROM ${row[0]} LIMIT 10;`;
-                    tableList.appendChild(li);
-                });
-            }
-        }
-
-        initDatabase();
-    </script>
-</body>
+  </body>
 </html>
